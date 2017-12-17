@@ -8,9 +8,9 @@ contract PayrollInterface {
     function setEmployeeSalary(uint256 employeeId, uint256 yearlyEURSalary) public;
     function removeEmployee(uint256 employeeId) public;
 
-    function addFunds() public payable;
+    function addFunds() payable public;
     function scapeHatch() public;
-    // function addTokenFunds()? // Use approveAndCall or ERC223 tokenFallback
+    function addTokenFunds() public; // Use approveAndCall or ERC223 tokenFallback
 
     function getEmployeeCount() public view returns (uint256);
     function getEmployee(uint256 employeeId) public view returns (address employee); // Return all important info too
