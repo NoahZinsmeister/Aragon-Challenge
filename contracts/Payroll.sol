@@ -126,7 +126,8 @@ contract Payroll is Ownable, PayrollInterface {
         onlyOwner
         isEmployee(employeeRegister[employeeId].employeeAddress, true)
     {
-        Employee storage employee = employeeRegister[employeeId];
+        // since we're deleteing this entry, it's clearer to work with a temp copy in memory
+        Employee memory employee = employeeRegister[employeeId];
 
         employeeCount--;
         totalYearlyEURSalary = totalYearlyEURSalary.sub(employee.yearlyEURSalary);
@@ -202,10 +203,10 @@ contract Payroll is Ownable, PayrollInterface {
 
         // ensure the distribution is valid
         require(tokens.length == distribution.length);
+        checkDistribution(distribution);
         for (uint256 i = 0; i < tokens.length; i++) {
             require(supportsToken(tokens[i]));
         }
-        checkDistribution(distribution);
 
         // update the distribution and reset the cooldown
         employee.allowedTokens = tokens;

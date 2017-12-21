@@ -12,7 +12,7 @@ contract EURToken is BasicToken {
     uint8 public decimals = 18;
     uint256 public totalSupply;
 
-    function EUR(uint256 initialSupply) public {
+    function EURToken(uint256 initialSupply) public {
         totalSupply = initialSupply * 10 ** uint256(decimals);
         balances[msg.sender] = totalSupply;
     }
