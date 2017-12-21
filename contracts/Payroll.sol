@@ -200,7 +200,7 @@ contract Payroll is Ownable, PayrollInterface {
         // ensure the employee hasn't called this function for at least 6 months
         require(now > employee.lastAllocation + (1 years / 2));
 
-        // ensure the distribution is valid;
+        // ensure the distribution is valid
         require(tokens.length == distribution.length);
         for (uint256 i = 0; i < tokens.length; i++) {
             require(supportsToken(tokens[i]));
