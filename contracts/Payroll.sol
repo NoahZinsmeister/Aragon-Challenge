@@ -60,13 +60,13 @@ contract Payroll is Ownable, PayrollInterface {
 
     //// CONSTRUCTOR ////
     function Payroll(address _oracleAddress, address _EURAddress) public {
-        // employee ids begin at 1
+        // employee ids begin at 1 so that the isEmployee modifier works as written
         nextEmployeeId = 1;
         // hardcode the oracle address
         oracleAddress = _oracleAddress;
-        // add EUR Token Support
+        // EUR Token Support by default
         addTokenToWhiteList(_EURAddress);
-        // off to the races
+        // and we're off to the races
         contractState = states.Unlocked;
     }
 
@@ -95,7 +95,6 @@ contract Payroll is Ownable, PayrollInterface {
     {
         employeeCount++;
         totalYearlyEURSalary = totalYearlyEURSalary.add(initialYearlyEURSalary);
-
         employeeId = nextEmployeeId++;
         employeeIds[accountAddress] = employeeId;
         employeeRegister[employeeId] = Employee(
@@ -149,7 +148,7 @@ contract Payroll is Ownable, PayrollInterface {
     function lock() public onlyOwner {
         contractState = states.Locked;
 
-        // try to send all tokens to the owner
+        // send all whitelisted tokens to the owner
         for (uint256 i = 0; i < tokenWhitelist.length; i++) {
             ERC20Basic token = ERC20Basic(tokenWhitelist[i]);
             token.transfer(owner, token.balanceOf(this));
@@ -166,7 +165,7 @@ contract Payroll is Ownable, PayrollInterface {
         require(supportsToken(_from));
     }
 
-    // safety valve ensuring that no token can ever be "stuck" in the contract
+    // safety valve ensuring that no ERC-20 token can ever be "stuck" in the contract
     function drainToken(address tokenAddress) public onlyOwner {
         ERC20Basic token = ERC20Basic(tokenAddress);
         token.transfer(owner, token.balanceOf(this));
@@ -192,21 +191,21 @@ contract Payroll is Ownable, PayrollInterface {
             uint256 lastAllocation
         )
     {
-        Employee storage _employee = employeeRegister[employeeId];
+        Employee storage employee = employeeRegister[employeeId];
 
         return (
-            _employee.employeeAddress,
-            _employee.allowedTokens,
-            _employee.tokenDistribution,
-            _employee.yearlyEURSalary,
-            _employee.lastPayday,
-            _employee.lastAllocation
+            employee.employeeAddress,
+            employee.allowedTokens,
+            employee.tokenDistribution,
+            employee.yearlyEURSalary,
+            employee.lastPayday,
+            employee.lastAllocation
         );
     }
 
     function getWhitelist() public view returns (address[] whitelist) { return tokenWhitelist; }
 
-    // projected monthly token ouflows, denominated in EUR
+    // projected total monthly token ouflows, denominated in EUR
     function calculatePayrollBurnrate() public view returns (uint256) {
         return totalYearlyEURSalary.div(12);
     }
@@ -238,7 +237,7 @@ contract Payroll is Ownable, PayrollInterface {
         Employee storage employee = employeeRegister[employeeIds[msg.sender]];
 
         // ensure the employee hasn't called this function for at least 1 month
-        require(now > (employee.lastAllocation + (1 years / 12)));
+        require(now > (employee.lastPayday + (1 years / 12)));
 
         // calculate the amount of EUR the employee is owed based on seconds since last payday
         uint256 EUROwed  = (now - employee.lastPayday).mul(employee.yearlyEURSalary).div(1 years);
@@ -250,6 +249,7 @@ contract Payroll is Ownable, PayrollInterface {
             uint256 tokenOwed = EUROwed.mul(employee.tokenDistribution[i]).div(100).mul(token.EURExchangeRate);
             require(ERC20Basic(token.tokenAddress).transfer(msg.sender, tokenOwed));
         }
+        employee.lastPayday = now;
     }
 
     //// INTERNAL ////
@@ -274,6 +274,7 @@ contract Payroll is Ownable, PayrollInterface {
         employee.tokenDistribution = distribution;
         employee.lastAllocation = now;
     }
+
     // ensures that the sum of the passed uint array is 100 i.e. a valid distribution
     function checkDistribution(uint256[] distribution) internal pure {
         uint256 distributionSum;

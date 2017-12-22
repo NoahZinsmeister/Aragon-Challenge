@@ -2,6 +2,7 @@ var Payroll = artifacts.require("./Payroll.sol");
 
 const shared = require('./shared.js');
 
+// courtesy of Angello Pozo
 const timeTravel = function (time) {
     return new Promise((resolve, reject) => {
         web3.currentProvider.sendAsync({
@@ -49,10 +50,9 @@ contract('Payroll', function(accounts) {
         let transferAmount = 300000;
 
         // transfer EUR to the payroll contract
-        let result = await EURTokenInstance.transfer(payrollInstance.address, transferAmount)
-        assert.isOk(result.receipt.status, "token transfer failed");
+        await EURTokenInstance.transfer(payrollInstance.address, transferAmount);
         let balance = await EURTokenInstance.balanceOf.call(payrollInstance.address);
-        assert.equal(balance, transferAmount, "token not received");
+        assert.equal(balance, transferAmount, "tokena not received");
     });
 
     let yearlyEURSalary = 200000;
@@ -96,7 +96,7 @@ contract('Payroll', function(accounts) {
         throw new Error("determineAllocation was callable")
     });
 
-    it("payday should be functional after e.g. a year...", async function () {
+    it("payday should be functional after a year...", async function () {
         await timeTravel(60*60*24*365);
         // update the exchange rate
         await oracleInstance.sendExchangeRateUpdate(
@@ -104,7 +104,7 @@ contract('Payroll', function(accounts) {
             EURTokenInstance.address,
             1);
         await payrollInstance.payday({from: accounts[1]});
-        let tokenBalance = (await EURTokenInstance.balanceOf.call(accounts[1])).toNumber();
+        let tokenBalance = await EURTokenInstance.balanceOf.call(accounts[1]);
         assert.equal(tokenBalance, yearlyEURSalary, "incorrect payment");
     });
 
@@ -122,8 +122,26 @@ contract('Payroll', function(accounts) {
     });
 
     it("check calculatePayrollRunway", async function () {
+        // we've spent 200,000 of 300,000 so we expect this to be half a year in days
         let runway = (await payrollInstance.calculatePayrollRunway()).toNumber();
         assert.closeTo(runway, 365/2, 1, "incorrect runway calculation")
+    });
+
+    it("contract should be lockable", async function () {
+        await payrollInstance.lock();
+        // time travel again because we need to try to call an employee function
+        await timeTravel(60*60*24*365);
+        try {
+            await payrollInstance.payday({from: accounts[1]});
+        } catch(error) {
+            return true
+        }
+        throw new Error("payday was callable")
+    });
+
+    it("and should now have no funds", async function () {
+        let runway = (await payrollInstance.calculatePayrollRunway()).toNumber();
+        assert.equal(runway, 0, "tokens not drained when contract was locked")
     });
 
     it("remove employee", async function () {
