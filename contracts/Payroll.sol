@@ -160,6 +160,23 @@ contract Payroll is Ownable, PayrollInterface {
         contractState = states.Unlocked;
     }
 
+    //// PUBLIC - TOKEN INTERACTIONS ////
+    // deal with erc223-compliant tokens (reject if not in whitelist) - Dexaran implementation
+    function tokenFallback(address _from, uint, bytes) public {
+        require(supportsToken(_from));
+    }
+
+    // safety valve ensuring that no token can ever be "stuck" in the contract
+    function drainToken(address tokenAddress) public onlyOwner {
+        ERC20Basic token = ERC20Basic(tokenAddress);
+        token.transfer(owner, token.balanceOf(this));
+    }
+    // returns true if token is whitelisted
+    function supportsToken(address token) public view returns (bool) {
+        return(tokenRegister[token].tokenAddress != 0x0);
+    }
+
+
     //// PUBLIC - USEFUL VIEW FUNCTIONS ////
     function getEmployeeCount() public view returns (uint256) { return employeeCount; }
 
@@ -233,23 +250,6 @@ contract Payroll is Ownable, PayrollInterface {
             uint256 tokenOwed = EUROwed.mul(employee.tokenDistribution[i]).div(100).mul(token.EURExchangeRate);
             require(ERC20Basic(token.tokenAddress).transfer(msg.sender, tokenOwed));
         }
-    }
-
-    //// PUBLIC - TOKEN INTERACTIONS ////
-    // returns true if token is whitelisted
-    function supportsToken(address token) public view returns (bool) {
-        return(tokenRegister[token].tokenAddress != 0x0);
-    }
-
-    // deal with erc223-compliant tokens (reject if not in whitelist) - Dexaran implementation
-    function tokenFallback(address _from, uint, bytes) public view {
-        require(supportsToken(_from));
-    }
-
-    // safety valve ensuring that no token can ever be "stuck" in the contract
-    function drainToken(address tokenAddress) public onlyOwner {
-        ERC20Basic token = ERC20Basic(tokenAddress);
-        token.transfer(owner, token.balanceOf(this));
     }
 
     //// INTERNAL ////
