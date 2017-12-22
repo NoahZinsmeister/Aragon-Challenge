@@ -24,7 +24,7 @@ contract Payroll is Ownable, PayrollInterface {
         uint256 rateLastUpdated;
     }
     mapping(address => Token) tokenRegister;
-    address[] public tokenWhitelist;
+    address[] tokenWhitelist;
 
     // employee logic
     struct Employee {
@@ -65,7 +65,7 @@ contract Payroll is Ownable, PayrollInterface {
         // hardcode the oracle address
         oracleAddress = _oracleAddress;
         // add EUR Token Support
-        tokenWhitelist.push(_EURAddress);
+        addTokenToWhiteList(_EURAddress);
         // off to the races
         contractState = states.Unlocked;
     }
@@ -91,7 +91,7 @@ contract Payroll is Ownable, PayrollInterface {
         public
         onlyOwner
         isEmployee(accountAddress, false)
-        returns(uint256 employeeId)
+        returns (uint256 employeeId)
     {
         employeeCount++;
         totalYearlyEURSalary = totalYearlyEURSalary.add(initialYearlyEURSalary);
@@ -108,7 +108,7 @@ contract Payroll is Ownable, PayrollInterface {
             0
         );
 
-        determineAllocation(allowedTokens, tokenDistribution);
+        _determineAllocation(employeeId, allowedTokens, tokenDistribution);
 
         return employeeId;
     }
@@ -118,7 +118,11 @@ contract Payroll is Ownable, PayrollInterface {
         onlyOwner
         isEmployee(employeeRegister[employeeId].employeeAddress, true)
     {
-        employeeRegister[employeeId].yearlyEURSalary = yearlyEURSalary;
+        Employee storage employee = employeeRegister[employeeId];
+
+        totalYearlyEURSalary =
+            totalYearlyEURSalary.sub(employee.yearlyEURSalary).add(yearlyEURSalary);
+        employee.yearlyEURSalary = yearlyEURSalary;
     }
 
     function removeEmployee(uint256 employeeId)
@@ -126,7 +130,7 @@ contract Payroll is Ownable, PayrollInterface {
         onlyOwner
         isEmployee(employeeRegister[employeeId].employeeAddress, true)
     {
-        // since we're deleteing this entry, it's clearer to work with a temp copy in memory
+        // since we're deleteing this entry, it's clearer to work with a temporary copy in memory
         Employee memory employee = employeeRegister[employeeId];
 
         employeeCount--;
@@ -136,8 +140,20 @@ contract Payroll is Ownable, PayrollInterface {
         delete employeeRegister[employeeId];
     }
 
+    function addTokenToWhiteList(address token) public onlyOwner {
+        require(!supportsToken(token));
+        tokenWhitelist.push(token);
+        tokenRegister[token] = Token(token, 0, 0);
+    }
+
     function lock() public onlyOwner {
         contractState = states.Locked;
+
+        // try to send all tokens to the owner
+        for (uint256 i = 0; i < tokenWhitelist.length; i++) {
+            ERC20Basic token = ERC20Basic(tokenWhitelist[i]);
+            token.transfer(owner, token.balanceOf(this));
+        }
     }
 
     function unlock() public onlyOwner {
@@ -171,6 +187,8 @@ contract Payroll is Ownable, PayrollInterface {
         );
     }
 
+    function getWhitelist() public view returns (address[] whitelist) { return tokenWhitelist; }
+
     // projected monthly token ouflows, denominated in EUR
     function calculatePayrollBurnrate() public view returns (uint256) {
         return totalYearlyEURSalary.div(12);
@@ -187,7 +205,7 @@ contract Payroll is Ownable, PayrollInterface {
                 ERC20Basic(token.tokenAddress).balanceOf(this).div(token.EURExchangeRate);
             EURBalance = EURBalance.add(tokenBalanceInEUR);
         }
-        return EURBalance.div(totalYearlyEURSalary.div(12));
+        return EURBalance.div(totalYearlyEURSalary.div(365));
     }
 
     //// PUBLIC - EMPLOYEE ONLY ////
@@ -196,22 +214,7 @@ contract Payroll is Ownable, PayrollInterface {
         unlocked
         isEmployee(msg.sender, true)
     {
-        Employee storage employee = employeeRegister[employeeIds[msg.sender]];
-
-        // ensure the employee hasn't called this function for at least 6 months
-        require(now > employee.lastAllocation + (1 years / 2));
-
-        // ensure the distribution is valid
-        require(tokens.length == distribution.length);
-        checkDistribution(distribution);
-        for (uint256 i = 0; i < tokens.length; i++) {
-            require(supportsToken(tokens[i]));
-        }
-
-        // update the distribution and reset the cooldown
-        employee.allowedTokens = tokens;
-        employee.tokenDistribution = distribution;
-        employee.lastAllocation = now;
+        _determineAllocation(employeeIds[msg.sender], tokens, distribution);
     }
 
     function payday() public unlocked isEmployee(msg.sender, true) {
@@ -244,12 +247,33 @@ contract Payroll is Ownable, PayrollInterface {
     }
 
     // safety valve ensuring that no token can ever be "stuck" in the contract
-    function drainToken(address tokenAddress, address destinationAddress) public onlyOwner {
+    function drainToken(address tokenAddress) public onlyOwner {
         ERC20Basic token = ERC20Basic(tokenAddress);
-        token.transfer(destinationAddress, token.balanceOf(this));
+        token.transfer(owner, token.balanceOf(this));
     }
 
     //// INTERNAL ////
+    // interal allocation determination, allows an employee-only version and version in addEmployee
+    function _determineAllocation(uint256 employeeId, address[] tokens, uint256[] distribution)
+        internal
+    {
+        Employee storage employee = employeeRegister[employeeId];
+
+        // ensure the employee hasn't called this function for at least 6 months
+        require(now > (employee.lastAllocation + (1 years / 2)));
+
+        // ensure the distribution is valid
+        require(tokens.length == distribution.length);
+        checkDistribution(distribution);
+        for (uint256 i = 0; i < tokens.length; i++) {
+            require(supportsToken(tokens[i]));
+        }
+
+        // update the distribution and reset the cooldown
+        employee.allowedTokens = tokens;
+        employee.tokenDistribution = distribution;
+        employee.lastAllocation = now;
+    }
     // ensures that the sum of the passed uint array is 100 i.e. a valid distribution
     function checkDistribution(uint256[] distribution) internal pure {
         uint256 distributionSum;
