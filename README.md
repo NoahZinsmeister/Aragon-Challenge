@@ -1,6 +1,6 @@
 # Status Coding Challenge: Software Engineer - Smart Contracts
 
-A quick file guide: Payroll logic is found in [contracts/Payroll.sol](./contracts/Payroll.sol), the interface is in [contracts/PayrollInterface.sol](./contracts/PayrollInterface.sol). I implemented a [dummy EUR Token](./contracts/EURToken.sol) and an [oracle](./contracts/Oracle.sol) for testing purposes. Tests are in [tests/payroll.js](./tests/payroll.js).
+A quick file guide: Payroll logic is found in [contracts/Payroll.sol](./contracts/Payroll.sol), the interface is in [contracts/PayrollInterface.sol](./contracts/PayrollInterface.sol). I implemented a [dummy EUR Token](./contracts/EURToken.sol) and an [oracle](./contracts/Oracle.sol) for testing purposes. Tests are in [test/payroll.js](./test/payroll.js).
 
 ### Solution Notes
 While implementing this Payroll interface, my intent was to write clear and functional code. To clarify any remaining points of confusion, I've documented several key design features below.
